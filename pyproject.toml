@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "edgelab"
+version = "0.1.0"
+description = "EdgeLab - Historical football data ingestion and prediction framework"
+requires-python = ">=3.12"
+dependencies = [
+    "pandas>=2.0",
+    "plotly>=7.1",
+    "streamlit>=1.66",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+edgelab-ingest = "edgelab.data.ingest:main"
+edgelab-backtest = "edgelab.evaluation.backtest:main"
+edgelab-evaluate = "edgelab.evaluation.report:main"
+edgelab-robustness = "edgelab.evaluation.robustness:main"
+edgelab-calibrate = "edgelab.evaluation.calibration:main"
+edgelab-market-benchmark = "edgelab.evaluation.market_benchmark:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

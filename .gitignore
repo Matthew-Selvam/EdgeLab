@@ -1,0 +1,35 @@
+# Local source data, predictions, studies and restricted market derivatives.
+/data/
+/artifacts/
+/reports/
+E0*.csv
+market_predictions*.csv
+
+# Generated knowledge graph and local session notes.
+/graphify-out/
+/HANDOFF.md
+
+# Python environments, build metadata and caches.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage*
+htmlcov/
+build/
+dist/
+
+# Secrets and machine/editor state.
+.env
+.env.*
+.streamlit/secrets.toml
+*.pem
+*.key
+.DS_Store
+.idea/
+.vscode/
+*.log

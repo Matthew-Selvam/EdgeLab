@@ -1,0 +1,11 @@
+[theme]
+base = "dark"
+# A deeper green keeps Streamlit's white selected-chip text readable.
+primaryColor = "#416D46"
+backgroundColor = "#0B1015"
+secondaryBackgroundColor = "#121A23"
+textColor = "#F2F5F7"
+borderColor = "#2B3743"
+dataframeBorderColor = "#2B3743"
+dataframeHeaderBackgroundColor = "#18232D"
+font = "sans-serif"

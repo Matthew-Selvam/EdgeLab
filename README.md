@@ -1,0 +1,304 @@
+# EdgeLab — Football Prediction Research
+
+## Overview
+
+EdgeLab ingests OpenFootball Premier League seasons into a canonical CSV, then
+produces date-batched, out-of-sample 1X2 forecasts from a class-frequency
+baseline, Elo ratings, and an independent-Poisson goals model. It saves
+predictions and a matched-fixture evaluation report. This is a research
+pipeline; its Elo probability conversion is a fixed heuristic, not a fitted
+classifier.
+
+The [research report and release-readiness audit](docs/EDGELAB_RESEARCH_REPORT.md)
+consolidates the saved model, robustness, calibration and retrospective
+closing-market findings. Start with the [clean-checkout reproduction guide](docs/REPRODUCIBILITY.md)
+for pinned source acquisition, environment setup and commands. The
+[release audit](docs/RELEASE_READINESS.md) records current verification and
+publication decisions. Original EdgeLab source code and original documentation
+are licensed under the [MIT License](LICENSE), Copyright (c) 2026 Matthew Selvam.
+This grant excludes third-party content and data; see the
+[licence scope and data-use restrictions](docs/LICENSING.md). Raw odds and
+restricted fixture-level market derivatives remain local and excluded from Git.
+
+## Run the first prediction and evaluation pipeline
+
+With Python 3.12 and `pip install -e '.[dev]'` completed:
+
+```bash
+python -m edgelab.evaluation --input data/processed/premier_league_matches.csv --output-dir data/processed
+python -m pytest -q
+```
+
+The equivalent console command is `edgelab-backtest`. It writes
+`data/processed/predictions/predictions.csv`, `backtest_summary.json`,
+`metrics.json`, and `evaluation_report.md`. The input CSV is reused without
+running ingestion. These commands regenerate ignored outputs; use a fresh
+copy when preserving the current frozen artifacts. `edgelab-evaluate`
+regenerates the metrics and report from saved predictions.
+
+The split is 2015–16 through 2022–23 for development (3,040 fixtures),
+2023–24 for validation (380), and 2024–25 for held-out test (380). The
+baseline is frozen after development. Elo ratings and Poisson team counts
+update after each completed calendar date; all fixtures
+on a date are forecast before any result from that date is applied. Parameters
+were fixed before the held-out test run. See [methodology](docs/METHODOLOGY.md)
+and the generated evaluation report for formulas, audit findings, and scores.
+The [correction impact](docs/DATE_CORRECTION_IMPACT.md) records measured
+before/after baseline and Elo results with unchanged model settings.
+
+## Calibration and season robustness study
+
+Run the separate development walk-forward study after the canonical CSV and
+frozen evaluation artefacts exist:
+
+```bash
+python -m edgelab.evaluation.robustness --input data/processed/premier_league_matches.csv --reference-dir data/processed/predictions --output-dir data/processed/robustness
+```
+
+The equivalent installed command is `edgelab-robustness`. It writes
+`walk_forward_predictions.csv`, `excluded_fixtures.csv`, `season_metrics.csv`,
+`reliability_bins.csv`, `metrics.json`, and `REPORT.md` under
+`data/processed/robustness/`. The study scores 2016–17 through 2022–23 using
+completed prior development seasons. It records the 2015–16 exclusions and
+keeps the original validation and held-out test files untouched. The dashboard's
+Research explorer reads the saved season scores, class-wise reliability bins,
+and paired date-bootstrap intervals. See [methodology](docs/METHODOLOGY.md).
+
+## Poisson probability-calibration experiment
+
+With the robustness artefacts already generated, run the separate, fixed
+temperature-scaling experiment:
+
+```bash
+python -m edgelab.evaluation.calibration --input data/processed/premier_league_matches.csv --robustness-dir data/processed/robustness --frozen-dir data/processed/predictions --output-dir data/processed/calibration
+```
+
+The installed command is `edgelab-calibrate`. It fits one scalar using only
+the 2,660 out-of-sample development Poisson forecasts, then compares raw and
+calibrated probabilities on the unchanged 2023–24 validation and 2024–25
+held-out test fixtures. Results go to `data/processed/calibration/`: a
+calibrated prediction CSV, JSON metrics, reliability-bin CSV, interactive
+reliability plots, and a readable report. The Research explorer displays the
+saved experiment separately; the main scorecard and fixture explorer continue
+to use the original uncalibrated evaluation files. See
+[methodology](docs/METHODOLOGY.md) for the fit and split policy.
+
+## Historical evaluation dashboard
+
+Install the project and its existing Streamlit and Plotly dependencies, then
+launch the dashboard from the repository root:
+
+```bash
+cd edgelab
+python -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
+streamlit run src/edgelab/dashboard/app.py
+```
+
+The dashboard reads the saved `data/processed/predictions/predictions.csv` and
+`metrics.json` generated by the evaluation command above. It optionally reads
+the canonical match CSV to display full-time scores. It does not rerun
+ingestion, refit models, or make upcoming-match forecasts. If the artifacts are
+missing, run the evaluation command first. The split filter keeps 2023–24
+validation and 2024–25 held-out test separate. The fixture explorer supports
+team search and a focused H/D/A comparison for one played match, with the
+full saved history available below it. Model scores and calibration charts come from the saved
+full-split metrics, so filtering does not recalculate or redefine them.
+
+Open **Research explorer** for a seven-season development comparison of
+baseline, Elo, and Poisson. Select a score and seasons to inspect variation;
+the full table includes each season's fixture count and H/D/A ECE. The tab also
+shows saved one-versus-rest reliability bins and paired date-bootstrap
+intervals. Its experimental Poisson section compares raw and temperature-scaled
+probabilities on the separate validation and held-out test seasons. Temperature
+0.981548 was fitted on 2,660 out-of-sample development forecasts, and the
+saved experiment does not establish a consistent calibration gain. Raw Poisson
+remains the default throughout the main dashboard. If either research artefact
+family is missing or inconsistent, the tab explains the issue without changing
+the original scorecard or fixture explorer.
+
+The held-out test contains one season, which cannot establish long-run model
+superiority. In the saved test evaluation, Poisson's per-class calibration
+error exceeds the baseline's for home wins, draws, and away wins even though
+its Brier score and log loss are lower. See [methodology](docs/METHODOLOGY.md)
+and the generated `data/processed/predictions/evaluation_report.md` for
+details.
+
+The ingestion command also writes `data/processed/date_corrections.json`.
+It records the 66 confirmed 2019–20 July year corrections, with source
+fixture identity and the [OpenFootball issue](https://github.com/openfootball/football.json/issues/54)
+that documents the error. Raw files remain unchanged.
+
+## Repository Layout
+
+```
+edgelab/
+├── data/
+│   ├── raw/openfootball/          # Downloaded source JSON files (gitignored)
+│   │   ├── 2015-16.json
+│   │   ├── 2016-17.json
+│   │   └── ...
+│   ├── raw/football-data/         # Manually downloaded odds CSVs (gitignored)
+│   └── processed/                  # Generated output (gitignored)
+│       ├── premier_league_matches.csv
+│       ├── ingestion_report.json
+│       ├── date_corrections.json
+│       ├── robustness/
+│       ├── calibration/
+│       ├── odds_audit/
+│       ├── market_benchmark/
+│       └── predictions/
+│           ├── predictions.csv
+│           ├── metrics.json
+│           └── evaluation_report.md
+├── src/edgelab/data/
+│   ├── __init__.py
+│   ├── __main__.py                 # CLI entry point: python -m edgelab.data
+│   ├── models.py                   # MatchRecord, IngestionReport, Outcome
+│   ├── validators.py               # Date, score, team validation
+│   └── ingest.py                   # Main ingestion pipeline
+├── src/edgelab/models/             # Baseline, Elo, Poisson, team aliases
+├── src/edgelab/evaluation/         # Chronological backtest and metrics
+├── src/edgelab/dashboard/          # Read-only Streamlit dashboard
+├── tests/
+│   ├── conftest.py                 # Shared fixtures
+│   └── test_*.py                   # Ingestion, models, evaluation, dashboard
+├── pyproject.toml
+├── requirements.txt
+└── README.md
+```
+
+## Source Data
+
+**Retrospective closing-market benchmark:** ten manually downloaded EPL odds
+CSVs uniquely match all 3,800 corrected fixtures. The separate study uses only
+Pinnacle closing `PSCH/PSCD/PSCA`, scores the same 380 fixtures as baseline,
+Elo and raw Poisson in each of seven development folds plus 2023–24 validation
+and 2024–25 held-out test, and leaves all earlier results unchanged. Run:
+
+```bash
+.venv/bin/python -m edgelab.evaluation.market_benchmark
+```
+
+Its locally generated `data/processed/market_benchmark/REPORT.md`, metrics JSON,
+reliability bins and fixture-level derived probabilities are in the gitignored
+`data/processed/market_benchmark/` directory. On validation, closing-market
+Brier/log loss/accuracy are **0.5258 / 0.8995 / 0.597**; on the one-season test,
+**0.5751 / 0.9664 / 0.553**. These are retrospective closing prices with no
+quote timestamp, so they are not a strictly time-aligned forecast contest or
+an executable betting result. See the [source audit](docs/ODDS_SOURCE_AUDIT.md)
+and [methodology](docs/METHODOLOGY.md). Keep raw and derived fixture-level odds
+local; the entire `/data/` tree is gitignored. The benchmark's `--output-dir`
+accepts only paths inside `data/processed/market_benchmark/`, including resolved
+symlink targets. There is no external-output override.
+
+OpenFootball JSON files are expected in `data/raw/openfootball/` with
+filenames matching the pattern `YYYY-MM.json` (e.g. `2024-25.json`).
+Acquire the ten pinned public-domain files with
+`python scripts/fetch_openfootball.py` after environment setup; see the
+[source manifest](docs/OPENFOOTBALL_SOURCES.json). This command never fetches odds
+or overwrites differing existing raw files.
+Each file contains:
+
+```json
+{
+  "name": "English Premier League 2024/25",
+  "matches": [
+    {
+      "round": "Matchday 1",
+      "date": "2024-08-16",
+      "time": "20:00",
+      "team1": "Manchester United FC",
+      "team2": "Fulham FC",
+      "score": {
+        "ht": [0, 0],
+        "ft": [1, 0]
+      }
+    }
+  ]
+}
+```
+
+Key observations about the source data:
+
+- **`ht` (halftime) may be absent** — this is not a data-quality issue.
+  Matches without halftime scores are imported normally as long as `ft`
+  (full-time) is present.
+- **`time` (kickoff) is often present** but is NOT included in the canonical
+  schema. Only the date is used; kickoff times are not fabricated.
+- **Team names are inconsistent** across seasons (e.g. "Manchester United" vs
+  "Manchester United FC"). The canonical CSV preserves source names, while
+  the existing model-layer alias mapper uses stable club identities.
+
+## Running the Ingestion
+
+### Prerequisites
+
+```bash
+cd edgelab
+python -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
+```
+
+### Command
+
+```bash
+python -m edgelab.data
+```
+
+Or using the console script:
+
+```bash
+edgelab-ingest
+```
+
+### Output
+
+- **`data/processed/premier_league_matches.csv`** — Canonical match records
+  with columns: `match_id`, `competition`, `season`, `match_date`, `home_team`,
+  `away_team`, `home_goals`, `away_goals`, `outcome`, `source`.
+- **`data/processed/ingestion_report.json`** — Machine-readable ingestion
+  report with per-season breakdowns, skip/rejection lists, and counts.
+- **`data/processed/date_corrections.json`** — Deterministic fixture-level
+  audit of source date corrections and provenance.
+
+## Canonical Schema
+
+| Field          | Type   | Description                                        |
+|----------------|--------|----------------------------------------------------|
+| `match_id`     | str    | Deterministic ID: `EPL_{season}_{date}_{home}_vs_{away}` |
+| `competition`  | str    | Always "Premier League" for this dataset           |
+| `season`       | str    | Season identifier from filename (e.g. "2024-25")  |
+| `match_date`   | str    | ISO 8601 date (YYYY-MM-DD)                         |
+| `home_team`    | str    | Source team1 name (preserved as-is)                |
+| `away_team`    | str    | Source team2 name (preserved as-is)                |
+| `home_goals`   | int    | Full-time home goals                               |
+| `away_goals`   | int    | Full-time away goals                               |
+| `outcome`      | str    | "H" (home win), "D" (draw), or "A" (away win)     |
+| `source`       | str    | Source filename (e.g. "2024-25.json")             |
+
+## Validation Rules
+
+| Check                    | Action   | Reason                              |
+|--------------------------|----------|-------------------------------------|
+| Missing `ft` score       | **Skip** | Insufficient data (halftime only)  |
+| Missing `date`           | **Reject**| Required field missing              |
+| Malformed `date`         | **Reject**| Invalid ISO 8601 format             |
+| Missing or empty `team1` | **Reject**| Required field missing              |
+| Missing or empty `team2` | **Reject**| Required field missing              |
+| `ft` not a 2-element list| **Reject**| Structural data error               |
+| Negative goals           | **Reject**| Invalid score                      |
+| Duplicate match_id       | **Reject**| Same season + date + teams         |
+
+## Testing
+
+```bash
+pytest tests/ -v
+```
+
+The test suite includes:
+
+- **Unit tests** for each module (models, validators, ingest helpers)
+- **Integration tests** that run the full pipeline against real data
